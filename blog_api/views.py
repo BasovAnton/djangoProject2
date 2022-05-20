@@ -5,30 +5,40 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 
 from blog.models import Note
-from . import serializers
-
+from blog_api import serializers
+from blog.models import Note
+from rest_framework.generics import ListAPIView
 
 class NoteListCreateAPIView(APIView):
     """ Представление, которое позволяет вывести весь список записей и добавить новую запись. """
 
     def get(self, request: Request):
         objects = Note.objects.all()
-        return Response([
-            serializers.note_created(obj)
-            for obj in objects
-        ])
+        note_serializer = serializers.NoteSerializer(instance=objects, many=True,)
+
+        return Response(note_serializer.data)
 
     def post(self, request: Request):
-        data = request.data
-        note = Note(**data)
+        serializer = serializers.NoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        note.save(force_insert=True)
+        serializer.save(author = request.user)
 
         return Response(
-            serializers.note_created(note),
+            serializer.data,
             status=status.HTTP_201_CREATED
         )
 
+class NotePublicListAPIView(ListAPIView):
+    queryset = Note.objects.all()
+    serializer_class = serializers.NoteSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return queryset.filter(public=True)
+
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
 
 class NoteDetailAPIView(APIView):
     """ Представление, которое позволяет вывести отдельную запись. """
